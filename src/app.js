@@ -7,11 +7,22 @@ import {Strategy as LocalStrategy} from 'passport-local'
 import {dirname} from 'path'
 import {fileURLToPath} from 'url'
 import {User} from './models/user.js'
+import dotenv from 'dotenv'
+import minimist from 'minimist'
+import {fork} from 'child_process'
+
+
+
+dotenv.config()
+
+
+const options = {alias:{p:'port'}}
+const args = minimist(process.argv.slice(2),options)
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
 const app = express()
-const PORT = process.env.PORT||8080
+const PORT = args.port||8080
 const server = app.listen(PORT,()=>console.log(`Listening on port ${PORT}`))
 
 app.set('views', __dirname+'/views')
@@ -21,7 +32,7 @@ app.use(express.json())
 app.use(express.urlencoded({extended:true}))
 
 app.use(session({
-    secret:'clavesecreta',
+    secret: process.env.SECRET,
     resave:true,
     saveUninitialized:true,
     cookie:{
@@ -81,7 +92,7 @@ passport.use('loginStrategy', new LocalStrategy(
     }
 ))
 
-const URL = 'mongodb+srv://julian:coder123@clasecoderatlas.strau.mongodb.net/desafioPassport?retryWrites=true&w=majority'
+const URL = process.env.URL
 
 mongoose.connect(URL,{
     useNewUrlParser:true,
@@ -130,4 +141,32 @@ app.post('/login',passport.authenticate('loginStrategy',{
     failureRedirect:'/invalidPassword'
 }),(req,res)=>{
     res.redirect('/profile')
+})
+
+app.get('/info',(req,res)=>{
+    const info = {
+        argv: args,
+        platform: process.platform,
+        version: process.version,
+        rss: process.memoryUsage,
+        path: process.execPath,
+        pid: process.pid,
+        folder: process.env.PWD
+    }
+    res.send(info)
+})
+
+const child = fork('./src/child.js')
+app.get('/api/random',(req,res)=>{
+    let objFinal = []
+    let cant = req.query.cant
+    child.send(cant||50000000)
+    child.on('message',obj=>{
+        objFinal = obj
+    })
+    
+    setTimeout(() => {
+        res.json(objFinal)
+    }, 3500);
+
 })
